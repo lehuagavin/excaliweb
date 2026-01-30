@@ -61,6 +61,15 @@ export interface CreateFileResponse {
   file: FileInfo;
 }
 
+export interface CreateFolderRequest {
+  name: string;
+  parentPath: string;
+}
+
+export interface CreateFolderResponse {
+  folder: FolderInfo;
+}
+
 export interface RenameFileRequest {
   newName: string;
 }

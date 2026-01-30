@@ -4,7 +4,7 @@
 # Variables
 IMAGE_NAME := excaliweb
 CONTAINER_NAME := excaliweb-app
-PORT := 5173
+PORT := 5174
 DOCKER_TAG := latest
 
 .PHONY: help build deploy logs clean status

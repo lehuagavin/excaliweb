@@ -91,9 +91,27 @@ export async function createNewFile(name: string, parentPath: string): Promise<{
   return handleResponse(response);
 }
 
+// Create new folder
+export async function createNewFolder(name: string, parentPath: string): Promise<{ folder: FolderInfo }> {
+  const response = await fetch(`${API_BASE_URL}/api/files/folder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parentPath }),
+  });
+  return handleResponse(response);
+}
+
 // Delete file
 export async function deleteFileById(fileId: string): Promise<{ success: boolean }> {
   const response = await fetch(`${API_BASE_URL}/api/files/${fileId}`, {
+    method: 'DELETE',
+  });
+  return handleResponse(response);
+}
+
+// Delete folder
+export async function deleteFolderById(folderId: string): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/api/files/folder/${folderId}`, {
     method: 'DELETE',
   });
   return handleResponse(response);

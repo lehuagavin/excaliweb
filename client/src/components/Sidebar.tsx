@@ -51,6 +51,14 @@ const PlusIcon = () => (
   </svg>
 );
 
+const FolderPlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    <line x1="12" y1="11" x2="12" y2="17"/>
+    <line x1="9" y1="14" x2="15" y2="14"/>
+  </svg>
+);
+
 const FileIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -124,7 +132,9 @@ interface SidebarProps {
   onSelectFile: (file: FileInfo) => void;
   onOpenDirectory: () => void;
   onCreateFile: (folderPath: string | null) => void;
+  onCreateFolder: (folderPath: string | null) => void;
   onDeleteFile: (file: FileInfo) => void;
+  onDeleteFolder: (folder: FolderInfo) => void;
   onRenameFile: (file: FileInfo) => void;
   onSelectFolder: (folderPath: string | null) => void;
 }
@@ -132,7 +142,8 @@ interface SidebarProps {
 interface ContextMenuState {
   x: number;
   y: number;
-  file: FileInfo;
+  item: FileInfo | FolderInfo;
+  type: 'file' | 'folder';
 }
 
 export function Sidebar({
@@ -143,7 +154,9 @@ export function Sidebar({
   onSelectFile,
   onOpenDirectory,
   onCreateFile,
+  onCreateFolder,
   onDeleteFile,
+  onDeleteFolder,
   onRenameFile,
   onSelectFolder,
 }: SidebarProps) {
@@ -158,24 +171,34 @@ export function Sidebar({
     return searchFiles(fileTree, searchQuery.trim());
   }, [searchQuery, fileTree]);
 
-  const handleContextMenu = (e: React.MouseEvent, file: FileInfo) => {
+  const handleContextMenu = (e: React.MouseEvent, item: FileInfo | FolderInfo, type: 'file' | 'folder') => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, file });
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, item, type });
   };
 
   const handleDeleteClick = () => {
     if (contextMenu) {
-      const confirmDelete = window.confirm(`Delete "${contextMenu.file.name}"?`);
-      if (confirmDelete) {
-        onDeleteFile(contextMenu.file);
+      if (contextMenu.type === 'file') {
+        const file = contextMenu.item as FileInfo;
+        const confirmDelete = window.confirm(`Delete file "${file.name}"?`);
+        if (confirmDelete) {
+          onDeleteFile(file);
+        }
+      } else {
+        const folder = contextMenu.item as FolderInfo;
+        const confirmDelete = window.confirm(`Delete folder "${folder.name}" and all its contents?`);
+        if (confirmDelete) {
+          onDeleteFolder(folder);
+        }
       }
       setContextMenu(null);
     }
   };
 
   const handleRenameClick = () => {
-    if (contextMenu) {
-      onRenameFile(contextMenu.file);
+    if (contextMenu && contextMenu.type === 'file') {
+      onRenameFile(contextMenu.item as FileInfo);
       setContextMenu(null);
     }
   };
@@ -206,7 +229,7 @@ export function Sidebar({
       className={`file-item ${currentFile?.path === file.path ? 'active' : ''}`}
       style={{ paddingLeft: `${16 + depth * 16}px` }}
       onClick={() => onSelectFile(file)}
-      onContextMenu={(e) => handleContextMenu(e, file)}
+      onContextMenu={(e) => handleContextMenu(e, file, 'file')}
     >
       <div className="file-icon">
         <ExcalidrawFileIcon />
@@ -222,11 +245,21 @@ export function Sidebar({
     const isExpanded = isFolderExpanded(folder.path);
     const folderFileCount = countFiles(folder);
     const isSelected = currentFolderPath === folder.path;
+    const isRootFolder = !folder.parentPath || folder.parentPath === '';
 
     const handleFolderClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       toggleFolder(folder.path);
       onSelectFolder(folder.path);
+    };
+
+    const handleFolderContextMenu = (e: React.MouseEvent) => {
+      // Don't show context menu for root workspace folder
+      if (isRootFolder) {
+        e.preventDefault();
+        return;
+      }
+      handleContextMenu(e, folder, 'folder');
     };
 
     return (
@@ -235,6 +268,7 @@ export function Sidebar({
           className={`folder-item ${isExpanded ? 'expanded' : ''} ${isSelected ? 'selected' : ''}`}
           style={{ paddingLeft: `${16 + depth * 16}px` }}
           onClick={handleFolderClick}
+          onContextMenu={handleFolderContextMenu}
         >
           <span className={`folder-chevron ${isExpanded ? 'expanded' : ''}`}>
             <ChevronRightIcon />
@@ -294,7 +328,7 @@ export function Sidebar({
               key={file.path}
               className={`file-item ${currentFile?.path === file.path ? 'active' : ''}`}
               onClick={() => onSelectFile(file)}
-              onContextMenu={(e) => handleContextMenu(e, file)}
+              onContextMenu={(e) => handleContextMenu(e, file, 'file')}
             >
               <div className="file-icon">
                 <ExcalidrawFileIcon />
@@ -317,6 +351,10 @@ export function Sidebar({
     onCreateFile(currentFolderPath);
   };
 
+  const handleCreateFolder = () => {
+    onCreateFolder(currentFolderPath);
+  };
+
   return (
     <div className="sidebar" onClick={handleCloseContextMenu}>
       <div className="sidebar-header">
@@ -331,6 +369,10 @@ export function Sidebar({
           <button className="action-button" onClick={onOpenDirectory} title="Open Directory">
             <FolderIcon />
             <span>Open Folder</span>
+          </button>
+          <button className="action-button secondary" onClick={handleCreateFolder} title="Create New Folder">
+            <FolderPlusIcon />
+            <span>New Folder</span>
           </button>
           <button className="action-button primary" onClick={handleCreateFile} title="Create New File">
             <PlusIcon />
@@ -405,14 +447,18 @@ export function Sidebar({
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button className="context-menu-item" onClick={handleRenameClick}>
-            <EditIcon />
-            <span>Rename</span>
-          </button>
-          <div className="context-menu-divider" />
+          {contextMenu.type === 'file' && (
+            <>
+              <button className="context-menu-item" onClick={handleRenameClick}>
+                <EditIcon />
+                <span>Rename</span>
+              </button>
+              <div className="context-menu-divider" />
+            </>
+          )}
           <button className="context-menu-item delete" onClick={handleDeleteClick}>
             <TrashIcon />
-            <span>Delete</span>
+            <span>Delete {contextMenu.type === 'folder' ? 'Folder' : ''}</span>
           </button>
         </div>
       )}

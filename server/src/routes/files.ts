@@ -5,7 +5,9 @@ import {
   readFile,
   saveFile,
   createFile,
+  createFolder,
   deleteFile,
+  deleteFolder,
   renameFile,
   getFileTree,
 } from '../services/fileSystem.js';
@@ -14,6 +16,8 @@ import type {
   SaveFileRequest,
   CreateFileRequest,
   CreateFileResponse,
+  CreateFolderRequest,
+  CreateFolderResponse,
   RenameFileRequest,
   RenameFileResponse,
   ErrorResponse,
@@ -104,6 +108,33 @@ router.post('/', async (req: Request<{}, {}, CreateFileRequest>, res: Response<C
   }
 });
 
+// POST /api/files/folder - Create new folder
+router.post('/folder', async (req: Request<{}, {}, CreateFolderRequest>, res: Response<CreateFolderResponse | ErrorResponse>) => {
+  try {
+    const { name, parentPath } = req.body;
+
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'Invalid folder name' });
+      return;
+    }
+
+    if (!parentPath || typeof parentPath !== 'string') {
+      res.status(400).json({ error: 'Invalid parent path' });
+      return;
+    }
+
+    const folder = await createFolder(name, parentPath);
+
+    res.json({ folder });
+  } catch (error) {
+    console.error('Error creating folder:', error);
+    res.status(500).json({
+      error: 'Failed to create folder',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // DELETE /api/files/:fileId - Delete file
 router.delete('/:fileId', async (req: Request, res: Response) => {
   try {
@@ -116,6 +147,23 @@ router.delete('/:fileId', async (req: Request, res: Response) => {
     console.error('Error deleting file:', error);
     res.status(500).json({
       error: 'Failed to delete file',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// DELETE /api/files/folder/:folderId - Delete folder
+router.delete('/folder/:folderId', async (req: Request, res: Response) => {
+  try {
+    const { folderId } = req.params;
+    const relativePath = decodeFileId(folderId);
+
+    await deleteFolder(relativePath);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting folder:', error);
+    res.status(500).json({
+      error: 'Failed to delete folder',
       details: error instanceof Error ? error.message : String(error),
     });
   }

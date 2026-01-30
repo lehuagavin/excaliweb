@@ -21,7 +21,19 @@ function validatePath(relativePath: string): string {
     throw new Error('No workspace selected');
   }
 
-  const absolutePath = path.join(currentWorkspacePath, relativePath);
+  // Remove workspace name prefix if it exists
+  // Files from listExcalidrawFilesRecursive have paths like "workspaceName/file.excalidraw"
+  // We need to strip the workspace name to get the actual relative path
+  const workspaceName = path.basename(currentWorkspacePath);
+  let cleanPath = relativePath;
+
+  if (relativePath.startsWith(workspaceName + '/')) {
+    cleanPath = relativePath.substring(workspaceName.length + 1);
+  } else if (relativePath === workspaceName) {
+    cleanPath = '';
+  }
+
+  const absolutePath = path.join(currentWorkspacePath, cleanPath);
   const normalizedPath = path.normalize(absolutePath);
 
   // Ensure the path is within the workspace
@@ -73,10 +85,8 @@ export async function listExcalidrawFilesRecursive(
     } else if (entry.isDirectory() && !entry.name.startsWith('.')) {
       const subDirPath = path.join(dirPath, entry.name);
       const subFolder = await listExcalidrawFilesRecursive(subDirPath, currentPath);
-      // Only include folders that have excalidraw files
-      if (hasExcalidrawFiles(subFolder)) {
-        children.push(subFolder);
-      }
+      // Show all folders, even empty ones
+      children.push(subFolder);
     }
   }
 
@@ -98,6 +108,7 @@ export async function listExcalidrawFilesRecursive(
   };
 }
 
+// Note: hasExcalidrawFiles function is no longer needed but kept for backwards compatibility
 // Check if a folder has any excalidraw files (recursively)
 function hasExcalidrawFiles(folder: FolderInfo): boolean {
   for (const child of folder.children) {
@@ -131,8 +142,11 @@ export async function saveFile(relativePath: string, data: ExcalidrawFileData): 
 // Create a new file
 export async function createFile(name: string, parentPath: string): Promise<FileInfo> {
   const fileName = name.endsWith('.excalidraw') ? name : `${name}.excalidraw`;
-  const relativePath = parentPath === currentWorkspacePath ? fileName : `${parentPath}/${fileName}`;
-  const absolutePath = validatePath(relativePath);
+
+  // parentPath comes in format like "root" or "root/subfolder" (includes workspace name)
+  // validatePath will handle stripping the workspace name
+  const filePath = parentPath ? `${parentPath}/${fileName}` : fileName;
+  const absolutePath = validatePath(filePath);
 
   if (await exists(absolutePath)) {
     throw new Error('File already exists');
@@ -149,17 +163,17 @@ export async function createFile(name: string, parentPath: string): Promise<File
     files: {},
   };
 
+  // Ensure parent directory exists
+  const parentDir = path.dirname(absolutePath);
+  await fs.mkdir(parentDir, { recursive: true });
+
   await fs.writeFile(absolutePath, JSON.stringify(initialData, null, 2), 'utf-8');
 
-  // Get parent directory name for path construction
-  const parentDirName = path.basename(path.dirname(absolutePath));
-  const workspaceName = path.basename(currentWorkspacePath!);
-  const fileParentPath = parentPath === workspaceName ? workspaceName : parentPath;
-
+  // Return FileInfo with same path format as listExcalidrawFilesRecursive
   return {
     name: name.replace('.excalidraw', ''),
-    path: `${fileParentPath}/${fileName}`,
-    parentPath: fileParentPath,
+    path: filePath,
+    parentPath: parentPath || path.basename(currentWorkspacePath!),
   };
 }
 
@@ -172,6 +186,56 @@ export async function deleteFile(relativePath: string): Promise<void> {
   }
 
   await fs.unlink(absolutePath);
+}
+
+// Delete a folder
+export async function deleteFolder(relativePath: string): Promise<void> {
+  const workspaceName = path.basename(currentWorkspacePath!);
+
+  // Prevent deleting the workspace root
+  if (relativePath === workspaceName || !relativePath) {
+    throw new Error('Cannot delete workspace root directory');
+  }
+
+  const absolutePath = validatePath(relativePath);
+
+  if (!(await exists(absolutePath))) {
+    throw new Error('Folder not found');
+  }
+
+  // Check if it's a directory
+  const stat = await fs.stat(absolutePath);
+  if (!stat.isDirectory()) {
+    throw new Error('Path is not a directory');
+  }
+
+  // Delete folder recursively
+  await fs.rm(absolutePath, { recursive: true, force: true });
+}
+
+// Create a new folder
+export async function createFolder(name: string, parentPath: string): Promise<FolderInfo> {
+  // parentPath comes in format like "root" or "root/subfolder" (includes workspace name)
+  // validatePath will handle stripping the workspace name
+  const folderPath = parentPath ? `${parentPath}/${name}` : name;
+  const absolutePath = validatePath(folderPath);
+
+  // Check if folder already exists
+  if (await exists(absolutePath)) {
+    throw new Error('Folder already exists');
+  }
+
+  // Create the folder
+  await fs.mkdir(absolutePath, { recursive: true });
+
+  // Return FolderInfo with same path format as listExcalidrawFilesRecursive
+  return {
+    name,
+    path: folderPath,
+    parentPath: parentPath || path.basename(currentWorkspacePath!),
+    children: [],
+    isExpanded: false,
+  };
 }
 
 // Rename a file

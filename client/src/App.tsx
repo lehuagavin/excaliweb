@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
-import { CreateFileModal, RenameFileModal } from './components/Modal';
+import { CreateFileModal, CreateFolderModal, RenameFileModal } from './components/Modal';
 import { WorkspaceModal } from './components/WorkspaceModal';
 import { useAutoSave } from './hooks/useAutoSave';
 import {
@@ -10,7 +10,9 @@ import {
   getFileContent,
   saveFileContent,
   createNewFile,
+  createNewFolder,
   deleteFileById,
+  deleteFolderById,
   renameFileById,
   encodeFileId,
 } from './utils/api';
@@ -27,6 +29,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FileInfo | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
   const [createInFolderPath, setCreateInFolderPath] = useState<string | null>(null);
@@ -149,6 +152,15 @@ function App() {
     setIsCreateModalOpen(true);
   };
 
+  const handleOpenCreateFolderModal = (folderPath: string | null) => {
+    if (!workspacePath) {
+      alert('Please select a workspace first');
+      return;
+    }
+    setCreateInFolderPath(folderPath || currentFolderPath || fileTree?.path || null);
+    setIsCreateFolderModalOpen(true);
+  };
+
   const handleCreateFile = async (name: string) => {
     if (!workspacePath || !fileTree) return;
 
@@ -180,6 +192,24 @@ function App() {
     }
   };
 
+  const handleCreateFolder = async (name: string) => {
+    if (!workspacePath || !fileTree) return;
+
+    try {
+      const targetPath = createInFolderPath || fileTree.path;
+      await createNewFolder(name, targetPath);
+
+      // Refresh file tree
+      const { rootFolder } = await getWorkspace();
+      if (rootFolder) {
+        setFileTree(rootFolder);
+      }
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      alert('Failed to create folder: ' + (error as Error).message);
+    }
+  };
+
   const handleDeleteFile = async (file: FileInfo) => {
     if (!workspacePath) return;
 
@@ -201,6 +231,31 @@ function App() {
     } catch (error) {
       console.error('Failed to delete file:', error);
       alert('Failed to delete file: ' + (error as Error).message);
+    }
+  };
+
+  const handleDeleteFolder = async (folder: FolderInfo) => {
+    if (!workspacePath) return;
+
+    try {
+      const folderId = encodeFileId(folder.path);
+      await deleteFolderById(folderId);
+
+      // Refresh file tree
+      const { rootFolder } = await getWorkspace();
+      if (rootFolder) {
+        setFileTree(rootFolder);
+      }
+
+      // If current file was inside deleted folder, close it
+      if (currentFile && currentFile.path.startsWith(folder.path + '/')) {
+        setCurrentFile(null);
+        setExcalidrawData(null);
+        setIsDirty(false);
+      }
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+      alert('Failed to delete folder: ' + (error as Error).message);
     }
   };
 
@@ -279,7 +334,9 @@ function App() {
         onSelectFile={handleSelectFile}
         onOpenDirectory={handleOpenDirectory}
         onCreateFile={handleOpenCreateModal}
+        onCreateFolder={handleOpenCreateFolderModal}
         onDeleteFile={handleDeleteFile}
+        onDeleteFolder={handleDeleteFolder}
         onRenameFile={handleOpenRenameModal}
         onSelectFolder={handleSelectFolder}
       />
@@ -295,6 +352,12 @@ function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onConfirm={handleCreateFile}
+      />
+
+      <CreateFolderModal
+        isOpen={isCreateFolderModalOpen}
+        onClose={() => setIsCreateFolderModalOpen(false)}
+        onConfirm={handleCreateFolder}
       />
 
       <RenameFileModal
