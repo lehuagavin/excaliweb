@@ -6,6 +6,7 @@ IMAGE_NAME := excaliweb
 CONTAINER_NAME := excaliweb-app
 PORT := 5174
 DOCKER_TAG := latest
+DATA_DIR ?= $(shell pwd)/data
 
 .PHONY: help build deploy logs clean status
 
@@ -42,19 +43,26 @@ deploy: ## Rebuild and run container (stop existing if running)
 	@docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	@docker rm $(CONTAINER_NAME) 2>/dev/null || true
 	@echo ""
-	@echo "Step 2: Building new image..."
+	@echo "Step 2: Creating data directory (if not exists)..."
+	@mkdir -p $(DATA_DIR)
+	@echo ""
+	@echo "Step 3: Building new image..."
 	@docker build -t $(IMAGE_NAME):$(DOCKER_TAG) .
 	@echo ""
-	@echo "Step 3: Starting new container..."
+	@echo "Step 4: Starting new container..."
 	@docker run -d \
 		--name $(CONTAINER_NAME) \
 		-p $(PORT):80 \
+		-v $(DATA_DIR):/app/data \
+		-e DATA_DIR=/app/data \
+		-e DEFAULT_WORKSPACE=true \
 		--restart unless-stopped \
 		$(IMAGE_NAME):$(DOCKER_TAG)
 	@echo ""
 	@echo "✅ Deployment complete!"
 	@echo ""
 	@echo "📍 Application running at: http://localhost:$(PORT)"
+	@echo "📂 Data directory: $(DATA_DIR)"
 	@echo "🔍 Container name: $(CONTAINER_NAME)"
 	@echo ""
 	@echo "Run 'make status' to check container status"

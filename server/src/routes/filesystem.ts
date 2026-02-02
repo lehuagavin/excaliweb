@@ -29,15 +29,36 @@ async function checkAccess(dirPath: string): Promise<boolean> {
 }
 
 // GET /api/filesystem/list - List directories
-router.get('/list', async (req: Request, res: Response<ListDirectoriesResponse | { error: string }>) => {
+router.get('/list', async (req: Request, res: Response<ListDirectoriesResponse | { error: string; allowedPath?: string }>) => {
   try {
     const requestedPath = req.query.path as string;
+    const dataDir = process.env.DATA_DIR;
 
-    // Default to user's home directory
-    let currentPath = requestedPath || os.homedir();
+    // Determine base path
+    let currentPath: string;
+    
+    if (dataDir) {
+      // If DATA_DIR is configured, restrict browsing to it
+      if (!requestedPath) {
+        currentPath = dataDir;
+      } else {
+        const normalizedPath = path.resolve(requestedPath);
+        const normalizedDataDir = path.resolve(dataDir);
 
-    // Normalize and resolve the path
-    currentPath = path.resolve(currentPath);
+        if (!normalizedPath.startsWith(normalizedDataDir)) {
+          res.status(403).json({
+            error: 'Access denied: Path outside data directory',
+            allowedPath: dataDir
+          });
+          return;
+        }
+        currentPath = normalizedPath;
+      }
+    } else {
+      // Default to user's home directory
+      currentPath = requestedPath || os.homedir();
+      currentPath = path.resolve(currentPath);
+    }
 
     // Check if directory exists and is accessible
     const accessible = await checkAccess(currentPath);
@@ -79,8 +100,23 @@ router.get('/list', async (req: Request, res: Response<ListDirectoriesResponse |
       return a.name.localeCompare(b.name);
     });
 
-    // Get parent path
-    const parentPath = currentPath === '/' ? null : path.dirname(currentPath);
+    // Get parent path (don't allow going above DATA_DIR)
+    let parentPath: string | null = null;
+    if (currentPath !== '/') {
+      const parentDir = path.dirname(currentPath);
+      if (dataDir) {
+        const normalizedDataDir = path.resolve(dataDir);
+        // Only allow parent if it's within or equal to DATA_DIR
+        if (parentDir.startsWith(normalizedDataDir) || parentDir === normalizedDataDir) {
+          parentPath = parentDir;
+        } else if (currentPath !== normalizedDataDir) {
+          // If current path is not DATA_DIR but parent would be outside, allow going to DATA_DIR
+          parentPath = normalizedDataDir;
+        }
+      } else {
+        parentPath = parentDir;
+      }
+    }
 
     res.json({
       currentPath,
@@ -95,32 +131,64 @@ router.get('/list', async (req: Request, res: Response<ListDirectoriesResponse |
   }
 });
 
-// GET /api/filesystem/home - Get user's home directory
+// GET /api/filesystem/home - Get user's home directory (or DATA_DIR if configured)
 router.get('/home', (req: Request, res: Response) => {
-  res.json({ path: os.homedir() });
+  const dataDir = process.env.DATA_DIR;
+  if (dataDir) {
+    res.json({ path: dataDir });
+  } else {
+    res.json({ path: os.homedir() });
+  }
 });
 
 // GET /api/filesystem/common - Get common directories
 router.get('/common', async (req: Request, res: Response) => {
-  const homeDir = os.homedir();
-  const commonDirs = [
-    { name: 'Home', path: homeDir },
-    { name: 'Documents', path: path.join(homeDir, 'Documents') },
-    { name: 'Desktop', path: path.join(homeDir, 'Desktop') },
-    { name: 'Downloads', path: path.join(homeDir, 'Downloads') },
-  ];
+  const dataDir = process.env.DATA_DIR;
 
-  // Check which directories exist
-  const validDirs = await Promise.all(
-    commonDirs.map(async (dir) => {
-      const accessible = await checkAccess(dir.path);
-      return accessible ? dir : null;
-    })
-  );
+  if (dataDir) {
+    // Only return DATA_DIR and its subdirectories when configured
+    try {
+      const entries = await fs.readdir(dataDir, { withFileTypes: true });
+      const subDirs = entries
+        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map(entry => ({
+          name: entry.name,
+          path: path.join(dataDir, entry.name)
+        }));
 
-  res.json({
-    directories: validDirs.filter(Boolean),
-  });
+      res.json({
+        directories: [
+          { name: 'Data Directory', path: dataDir },
+          ...subDirs
+        ],
+      });
+    } catch {
+      res.json({
+        directories: [{ name: 'Data Directory', path: dataDir }],
+      });
+    }
+  } else {
+    // Original logic for non-containerized environments
+    const homeDir = os.homedir();
+    const commonDirs = [
+      { name: 'Home', path: homeDir },
+      { name: 'Documents', path: path.join(homeDir, 'Documents') },
+      { name: 'Desktop', path: path.join(homeDir, 'Desktop') },
+      { name: 'Downloads', path: path.join(homeDir, 'Downloads') },
+    ];
+
+    // Check which directories exist
+    const validDirs = await Promise.all(
+      commonDirs.map(async (dir) => {
+        const accessible = await checkAccess(dir.path);
+        return accessible ? dir : null;
+      })
+    );
+
+    res.json({
+      directories: validDirs.filter(Boolean),
+    });
+  }
 });
 
 export default router;

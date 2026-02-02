@@ -35,10 +35,22 @@ function validatePath(relativePath: string): string {
 
   const absolutePath = path.join(currentWorkspacePath, cleanPath);
   const normalizedPath = path.normalize(absolutePath);
+  const normalizedWorkspace = path.normalize(currentWorkspacePath);
 
-  // Ensure the path is within the workspace
-  if (!normalizedPath.startsWith(path.normalize(currentWorkspacePath))) {
-    throw new Error('Invalid path: outside workspace');
+  // Strict check: path must be within workspace
+  if (!normalizedPath.startsWith(normalizedWorkspace)) {
+    console.warn(`⚠️  Attempted to access path outside workspace: ${normalizedPath}`);
+    throw new Error('Invalid path: Access outside workspace is not allowed');
+  }
+
+  // Additional check: if DATA_DIR is set, ensure path is also within DATA_DIR
+  const dataDir = process.env.DATA_DIR;
+  if (dataDir) {
+    const normalizedDataDir = path.resolve(dataDir);
+    if (!normalizedPath.startsWith(normalizedDataDir)) {
+      console.error(`🚫 Security violation: Attempted to access path outside DATA_DIR: ${normalizedPath}`);
+      throw new Error('Invalid path: Access outside data directory is not allowed');
+    }
   }
 
   return normalizedPath;

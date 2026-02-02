@@ -1,21 +1,84 @@
 import { Router, Request, Response } from 'express';
-import { setWorkspacePath, getFileTree } from '../services/fileSystem.js';
+import path from 'path';
+import { promises as fs } from 'fs';
+import { setWorkspacePath, getFileTree, getWorkspacePath } from '../services/fileSystem.js';
 import type { SelectWorkspaceRequest, SelectWorkspaceResponse, ErrorResponse } from '../types/index.js';
 
 const router = Router();
 
+// GET /api/workspace/default - Get default workspace configuration
+router.get('/default', (req: Request, res: Response) => {
+  const dataDir = process.env.DATA_DIR;
+  const defaultWorkspace = process.env.DEFAULT_WORKSPACE === 'true';
+  const workspaceName = process.env.DEFAULT_WORKSPACE_NAME || 'my-workspace';
+
+  if (defaultWorkspace && dataDir) {
+    res.json({
+      enabled: true,
+      path: path.join(dataDir, workspaceName),
+      name: workspaceName,
+      dataDir: dataDir
+    });
+  } else {
+    res.json({
+      enabled: false
+    });
+  }
+});
+
 // POST /api/workspace/select - Set workspace path
 router.post('/select', async (req: Request<{}, {}, SelectWorkspaceRequest>, res: Response<SelectWorkspaceResponse | ErrorResponse>) => {
   try {
-    const { path } = req.body;
+    const { path: workspacePath } = req.body;
 
-    if (!path || typeof path !== 'string') {
+    if (!workspacePath || typeof workspacePath !== 'string') {
       res.status(400).json({ error: 'Invalid path' });
       return;
     }
 
+    // Validate path is within DATA_DIR if configured
+    const dataDir = process.env.DATA_DIR;
+    if (dataDir) {
+      const normalizedPath = path.resolve(workspacePath);
+      const normalizedDataDir = path.resolve(dataDir);
+
+      if (!normalizedPath.startsWith(normalizedDataDir)) {
+        res.status(403).json({
+          error: 'Invalid workspace path: Must be within data directory',
+          details: `Allowed path: ${dataDir}`
+        });
+        return;
+      }
+    }
+
+    // Verify path exists and is accessible
+    try {
+      await fs.access(workspacePath);
+      const stats = await fs.stat(workspacePath);
+      if (!stats.isDirectory()) {
+        res.status(400).json({ error: 'Path is not a directory' });
+        return;
+      }
+    } catch {
+      // Try to create the directory if it doesn't exist (only within DATA_DIR)
+      if (dataDir) {
+        try {
+          await fs.mkdir(workspacePath, { recursive: true });
+        } catch (mkdirError) {
+          res.status(400).json({ 
+            error: 'Path does not exist and could not be created',
+            details: mkdirError instanceof Error ? mkdirError.message : String(mkdirError)
+          });
+          return;
+        }
+      } else {
+        res.status(400).json({ error: 'Path does not exist or is not accessible' });
+        return;
+      }
+    }
+
     // Set workspace path
-    setWorkspacePath(path);
+    setWorkspacePath(workspacePath);
 
     // Get file tree
     const rootFolder = await getFileTree();
@@ -26,7 +89,7 @@ router.post('/select', async (req: Request<{}, {}, SelectWorkspaceRequest>, res:
     }
 
     res.json({
-      workspacePath: path,
+      workspacePath: workspacePath,
       rootFolder,
     });
   } catch (error) {

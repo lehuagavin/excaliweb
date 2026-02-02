@@ -62,8 +62,14 @@ COPY nginx.conf /etc/nginx/http.d/excaliweb.conf
 # Copy supervisor configuration
 COPY supervisord.conf /etc/supervisord.conf
 
-# Create log directory
-RUN mkdir -p /var/log
+# Create log directory and data directory
+RUN mkdir -p /var/log /app/data
+
+# Environment variables for data directory
+ENV DATA_DIR=/app/data
+
+# Declare volume (for documentation)
+VOLUME ["/app/data"]
 
 # Expose port
 EXPOSE 80

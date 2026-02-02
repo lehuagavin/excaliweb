@@ -15,6 +15,7 @@ import {
   deleteFolderById,
   renameFileById,
   encodeFileId,
+  getDefaultWorkspace,
 } from './utils/api';
 import { saveWorkspacePath, getWorkspacePath } from './utils/storage';
 import type { FileInfo, FolderInfo, ExcalidrawFileData } from './utils/api';
@@ -40,33 +41,71 @@ function App() {
   const currentFileRef = useRef<FileInfo | null>(null);
   currentFileRef.current = currentFile;
 
-  // Load saved workspace on mount
+  // Load workspace on mount - prioritize default workspace
   useEffect(() => {
-    const loadSavedWorkspace = async () => {
+    const initializeWorkspace = async () => {
       try {
+        // 1. Check if default workspace is configured
+        const defaultConfig = await getDefaultWorkspace();
+
+        if (defaultConfig.enabled && defaultConfig.path) {
+          // Use default workspace
+          console.log('Using default workspace:', defaultConfig.path);
+          const { workspacePath: newPath, rootFolder } = await selectWorkspace(defaultConfig.path);
+
+          // Save to localStorage
+          saveWorkspacePath(newPath);
+
+          setWorkspacePath(newPath);
+          setFileTree(rootFolder);
+          setIsWorkspaceModalOpen(false);
+        } else {
+          // 2. Try to restore from localStorage
+          const savedPath = getWorkspacePath();
+          if (savedPath) {
+            try {
+              const { rootFolder } = await getWorkspace();
+              if (rootFolder) {
+                setWorkspacePath(savedPath);
+                setFileTree(rootFolder);
+              } else {
+                // Workspace not set on server, prompt user
+                setIsWorkspaceModalOpen(true);
+              }
+            } catch (error) {
+              console.error('Failed to restore workspace:', error);
+              setIsWorkspaceModalOpen(true);
+            }
+          } else {
+            // 3. Show workspace selection dialog
+            setIsWorkspaceModalOpen(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize workspace:', error);
+        // Fallback to saved workspace or show modal
         const savedPath = getWorkspacePath();
         if (savedPath) {
-          const { rootFolder } = await getWorkspace();
-          if (rootFolder) {
-            setWorkspacePath(savedPath);
-            setFileTree(rootFolder);
-          } else {
-            // Workspace not set on server, prompt user
+          try {
+            const { rootFolder } = await getWorkspace();
+            if (rootFolder) {
+              setWorkspacePath(savedPath);
+              setFileTree(rootFolder);
+            } else {
+              setIsWorkspaceModalOpen(true);
+            }
+          } catch {
             setIsWorkspaceModalOpen(true);
           }
         } else {
-          // No saved workspace, prompt user
           setIsWorkspaceModalOpen(true);
         }
-      } catch (error) {
-        console.error('Failed to load saved workspace:', error);
-        setIsWorkspaceModalOpen(true);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSavedWorkspace();
+    initializeWorkspace();
   }, []);
 
   const handleSave = useCallback(async () => {

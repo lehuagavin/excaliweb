@@ -133,6 +133,19 @@ export async function checkHealth(): Promise<{ status: string }> {
   return handleResponse(response);
 }
 
+// Get default workspace configuration
+export interface DefaultWorkspaceConfig {
+  enabled: boolean;
+  path?: string;
+  name?: string;
+  dataDir?: string;
+}
+
+export async function getDefaultWorkspace(): Promise<DefaultWorkspaceConfig> {
+  const response = await fetch(`${API_BASE_URL}/api/workspace/default`);
+  return handleResponse(response);
+}
+
 // Filesystem browser
 export interface DirectoryItem {
   name: string;

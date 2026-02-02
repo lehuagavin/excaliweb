@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { listDirectories, getHomeDirectory, getCommonDirectories, type DirectoryItem } from '../utils/api';
+import { listDirectories, getHomeDirectory, getCommonDirectories, getDefaultWorkspace, type DirectoryItem, type DefaultWorkspaceConfig } from '../utils/api';
 import './Modal.css';
 
 // Icons
@@ -59,7 +59,24 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
   const [commonDirs, setCommonDirs] = useState<Array<{ name: string; path: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [defaultWorkspace, setDefaultWorkspace] = useState<DefaultWorkspaceConfig | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load default workspace config
+  useEffect(() => {
+    const fetchDefaultConfig = async () => {
+      try {
+        const config = await getDefaultWorkspace();
+        setDefaultWorkspace(config);
+      } catch (error) {
+        console.error('Failed to fetch default workspace config:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchDefaultConfig();
+    }
+  }, [isOpen]);
 
   // Load home directory on mount
   useEffect(() => {
@@ -181,6 +198,35 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {/* Data Directory Notice */}
+            {defaultWorkspace?.enabled && defaultWorkspace?.dataDir && (
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: '#e3f2fd',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '14px',
+                color: '#1565c0',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '16px' }}>ℹ️</span>
+                <div>
+                  <strong>Data Directory Mode</strong>
+                  <p style={{ margin: '4px 0 0 0', opacity: 0.9 }}>
+                    This application is configured to use a specific data directory. 
+                    You can only select workspaces within: <code style={{ 
+                      backgroundColor: 'rgba(0,0,0,0.1)', 
+                      padding: '2px 6px', 
+                      borderRadius: '4px',
+                      fontFamily: 'monospace'
+                    }}>{defaultWorkspace.dataDir}</code>
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Mode Toggle */}
             <div className="mode-toggle">
               <button
