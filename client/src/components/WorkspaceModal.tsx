@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { listDirectories, getHomeDirectory, getCommonDirectories, getDefaultWorkspace, type DirectoryItem, type DefaultWorkspaceConfig } from '../utils/api';
 import './Modal.css';
 
@@ -51,7 +51,6 @@ interface WorkspaceModalProps {
 }
 
 export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalProps) {
-  const [mode, setMode] = useState<'browse' | 'manual'>('browse');
   const [path, setPath] = useState('');
   const [currentPath, setCurrentPath] = useState('');
   const [parentPath, setParentPath] = useState<string | null>(null);
@@ -60,7 +59,6 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [defaultWorkspace, setDefaultWorkspace] = useState<DefaultWorkspaceConfig | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   // Load default workspace config
   useEffect(() => {
@@ -80,17 +78,11 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
 
   // Load home directory on mount
   useEffect(() => {
-    if (isOpen && mode === 'browse') {
+    if (isOpen) {
       loadHomeDirectory();
       loadCommonDirectories();
     }
-  }, [isOpen, mode]);
-
-  useEffect(() => {
-    if (isOpen && mode === 'manual') {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [isOpen, mode]);
+  }, [isOpen]);
 
   const loadHomeDirectory = async () => {
     try {
@@ -150,12 +142,7 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
     const trimmedPath = path.trim();
 
     if (!trimmedPath) {
-      setError('Please select or enter a directory path');
-      return;
-    }
-
-    if (mode === 'manual' && !trimmedPath.startsWith('/')) {
-      setError('Please enter an absolute path (starting with /)');
+      setError('Please select a directory');
       return;
     }
 
@@ -164,7 +151,6 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
   };
 
   const handleClose = () => {
-    setMode('browse');
     setPath('');
     setCurrentPath('');
     setDirectories([]);
@@ -227,127 +213,84 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
               </div>
             )}
 
-            {/* Mode Toggle */}
-            <div className="mode-toggle">
-              <button
-                type="button"
-                className={`mode-button ${mode === 'browse' ? 'active' : ''}`}
-                onClick={() => setMode('browse')}
-              >
-                Browse
-              </button>
-              <button
-                type="button"
-                className={`mode-button ${mode === 'manual' ? 'active' : ''}`}
-                onClick={() => setMode('manual')}
-              >
-                Manual Input
-              </button>
-            </div>
+            {/* Directory Browser */}
+            <div className="directory-browser">
+              {/* Common Directories */}
+              {commonDirs.length > 0 && (
+                <div className="common-directories">
+                  <div className="section-label">Quick Access</div>
+                  <div className="common-dir-list">
+                    {commonDirs.map((dir) => (
+                      <button
+                        key={dir.path}
+                        type="button"
+                        className="common-dir-item"
+                        onClick={() => handleCommonDirClick(dir.path)}
+                      >
+                        <HomeIcon />
+                        <span>{dir.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {mode === 'browse' ? (
-              <div className="directory-browser">
-                {/* Common Directories */}
-                {commonDirs.length > 0 && (
-                  <div className="common-directories">
-                    <div className="section-label">Quick Access</div>
-                    <div className="common-dir-list">
-                      {commonDirs.map((dir) => (
+              {/* Current Path */}
+              <div className="current-path">
+                <div className="section-label">Current Path</div>
+                <div className="path-display">{currentPath || '/'}</div>
+              </div>
+
+              {/* Directory List */}
+              <div className="directory-list-container">
+                <div className="section-label">Directories</div>
+                <div className="directory-list">
+                  {loading ? (
+                    <div className="loading-state">Loading...</div>
+                  ) : error ? (
+                    <div className="error-state">{error}</div>
+                  ) : (
+                    <>
+                      {/* Parent Directory */}
+                      {parentPath && (
                         <button
-                          key={dir.path}
                           type="button"
-                          className="common-dir-item"
-                          onClick={() => handleCommonDirClick(dir.path)}
+                          className="directory-item parent"
+                          onClick={handleParentClick}
                         >
-                          <HomeIcon />
-                          <span>{dir.name}</span>
+                          <ArrowUpIcon />
+                          <span>..</span>
                         </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
 
-                {/* Current Path */}
-                <div className="current-path">
-                  <div className="section-label">Current Path</div>
-                  <div className="path-display">{currentPath || '/'}</div>
-                </div>
-
-                {/* Directory List */}
-                <div className="directory-list-container">
-                  <div className="section-label">Directories</div>
-                  <div className="directory-list">
-                    {loading ? (
-                      <div className="loading-state">Loading...</div>
-                    ) : error ? (
-                      <div className="error-state">{error}</div>
-                    ) : (
-                      <>
-                        {/* Parent Directory */}
-                        {parentPath && (
+                      {/* Subdirectories */}
+                      {directories.length === 0 ? (
+                        <div className="empty-state-small">No subdirectories</div>
+                      ) : (
+                        directories.map((dir) => (
                           <button
+                            key={dir.path}
                             type="button"
-                            className="directory-item parent"
-                            onClick={handleParentClick}
+                            className={`directory-item ${!dir.isAccessible ? 'locked' : ''}`}
+                            onClick={() => handleDirectoryClick(dir)}
+                            disabled={!dir.isAccessible}
                           >
-                            <ArrowUpIcon />
-                            <span>..</span>
+                            {dir.isAccessible ? <FolderOpenIcon /> : <FolderLockedIcon />}
+                            <span>{dir.name}</span>
                           </button>
-                        )}
-
-                        {/* Subdirectories */}
-                        {directories.length === 0 ? (
-                          <div className="empty-state-small">No subdirectories</div>
-                        ) : (
-                          directories.map((dir) => (
-                            <button
-                              key={dir.path}
-                              type="button"
-                              className={`directory-item ${!dir.isAccessible ? 'locked' : ''}`}
-                              onClick={() => handleDirectoryClick(dir)}
-                              disabled={!dir.isAccessible}
-                            >
-                              {dir.isAccessible ? <FolderOpenIcon /> : <FolderLockedIcon />}
-                              <span>{dir.name}</span>
-                            </button>
-                          ))
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Selected Path Preview */}
-                <div className="selected-path">
-                  <div className="section-label">Selected Directory</div>
-                  <div className="path-preview">{path || 'None selected'}</div>
+                        ))
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="manual-input">
-                <label className="input-label" htmlFor="workspacePath">
-                  Directory Path
-                </label>
-                <div className={`input-wrapper ${error ? 'has-error' : ''}`}>
-                  <input
-                    ref={inputRef}
-                    id="workspacePath"
-                    type="text"
-                    className="input"
-                    placeholder="/home/user/drawings"
-                    value={path}
-                    onChange={(e) => {
-                      setPath(e.target.value);
-                      setError('');
-                    }}
-                  />
-                </div>
-                {error && <p className="error-message">{error}</p>}
-                <p className="input-hint">
-                  Enter the absolute path to your excalidraw files directory on the server.
-                </p>
+
+              {/* Selected Path Preview */}
+              <div className="selected-path">
+                <div className="section-label">Selected Directory</div>
+                <div className="path-preview">{path || 'None selected'}</div>
               </div>
-            )}
+            </div>
           </div>
 
           <div className="modal-footer">
