@@ -61,10 +61,8 @@ async function initializeDefaultWorkspace() {
     await fs.mkdir(DATA_DIR, { recursive: true });
 
     if (DEFAULT_WORKSPACE) {
-      const workspacePath = path.join(DATA_DIR, DEFAULT_WORKSPACE_NAME);
-
-      // Create default workspace folder (if not exists)
-      await fs.mkdir(workspacePath, { recursive: true });
+      // Use DATA_DIR directly as the workspace
+      const workspacePath = DATA_DIR;
 
       // Set as current workspace
       setWorkspacePath(workspacePath);

@@ -146,27 +146,10 @@ router.get('/common', async (req: Request, res: Response) => {
   const dataDir = process.env.DATA_DIR;
 
   if (dataDir) {
-    // Only return DATA_DIR and its subdirectories when configured
-    try {
-      const entries = await fs.readdir(dataDir, { withFileTypes: true });
-      const subDirs = entries
-        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
-        .map(entry => ({
-          name: entry.name,
-          path: path.join(dataDir, entry.name)
-        }));
-
-      res.json({
-        directories: [
-          { name: 'Data Directory', path: dataDir },
-          ...subDirs
-        ],
-      });
-    } catch {
-      res.json({
-        directories: [{ name: 'Data Directory', path: dataDir }],
-      });
-    }
+    // Only return DATA_DIR when configured (no subdirectories)
+    res.json({
+      directories: [{ name: 'Data Directory', path: dataDir }],
+    });
   } else {
     // Original logic for non-containerized environments
     const homeDir = os.homedir();

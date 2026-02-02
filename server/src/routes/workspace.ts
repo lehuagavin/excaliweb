@@ -10,13 +10,13 @@ const router = Router();
 router.get('/default', (req: Request, res: Response) => {
   const dataDir = process.env.DATA_DIR;
   const defaultWorkspace = process.env.DEFAULT_WORKSPACE === 'true';
-  const workspaceName = process.env.DEFAULT_WORKSPACE_NAME || 'my-workspace';
 
   if (defaultWorkspace && dataDir) {
+    // Use DATA_DIR directly as the default workspace
     res.json({
       enabled: true,
-      path: path.join(dataDir, workspaceName),
-      name: workspaceName,
+      path: dataDir,
+      name: path.basename(dataDir),
       dataDir: dataDir
     });
   } else {
