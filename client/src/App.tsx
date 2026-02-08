@@ -21,6 +21,16 @@ import { saveWorkspacePath, getWorkspacePath } from './utils/storage';
 import type { FileInfo, FolderInfo, ExcalidrawFileData } from './utils/api';
 import './App.css';
 
+// Lightweight fingerprint for detecting actual content changes
+// Uses element count + sum of version numbers (O(n), no serialization)
+function getFingerprint(data: ExcalidrawFileData): string {
+  let versionSum = 0;
+  for (const el of data.elements) {
+    versionSum += ((el as any).version || 0);
+  }
+  return `${data.elements.length}:${versionSum}:${data.appState?.viewBackgroundColor || ''}`;
+}
+
 function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [fileTree, setFileTree] = useState<FolderInfo | null>(null);
@@ -40,6 +50,9 @@ function App() {
 
   const currentFileRef = useRef<FileInfo | null>(null);
   currentFileRef.current = currentFile;
+
+  // Track saved state fingerprint to avoid false dirty flags from Excalidraw's frequent onChange
+  const savedFingerprintRef = useRef<string>('');
 
   // Load workspace on mount - prioritize default workspace
   useEffect(() => {
@@ -113,6 +126,7 @@ function App() {
       try {
         const fileId = encodeFileId(currentFileRef.current.path);
         await saveFileContent(fileId, currentDataRef.current);
+        savedFingerprintRef.current = getFingerprint(currentDataRef.current);
         setIsDirty(false);
         console.log('File saved:', currentFileRef.current.name);
       } catch (error) {
@@ -170,6 +184,7 @@ function App() {
       });
       setCurrentFile(file);
       setExcalidrawData(content);
+      savedFingerprintRef.current = getFingerprint(content);
       setIsDirty(false);
       setCurrentFolderPath(file.parentPath);
     } catch (error) {
@@ -222,6 +237,7 @@ function App() {
         const { content } = await getFileContent(fileId);
         setCurrentFile(file);
         setExcalidrawData(content);
+        savedFingerprintRef.current = getFingerprint(content);
         setIsDirty(false);
         setCurrentFolderPath(file.parentPath);
       }
@@ -341,16 +357,22 @@ function App() {
     ) => {
       if (!currentFile) return;
 
-      setExcalidrawData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          elements,
-          appState,
-          files,
-        };
-      });
-      setIsDirty(true);
+      const newData: ExcalidrawFileData = {
+        type: 'excalidraw',
+        version: 2,
+        source: 'excaliweb',
+        elements,
+        appState,
+        files,
+      };
+
+      setExcalidrawData(newData);
+
+      // Only mark dirty if content actually changed from last saved state
+      const fingerprint = getFingerprint(newData);
+      if (fingerprint !== savedFingerprintRef.current) {
+        setIsDirty(true);
+      }
     },
     [currentFile]
   );
