@@ -30,7 +30,7 @@ help: ## Show this help message
 
 build: ## Build the Docker image
 	@echo "🔨 Building Docker image: $(IMAGE_NAME):$(DOCKER_TAG)"
-	@docker build -t $(IMAGE_NAME):$(DOCKER_TAG) .
+	@docker build -f docker/Dockerfile -t $(IMAGE_NAME):$(DOCKER_TAG) .
 	@echo "✅ Image built successfully!"
 	@echo ""
 	@echo "Image details:"
@@ -47,7 +47,7 @@ deploy: ## Rebuild and run container (stop existing if running)
 	@mkdir -p $(DATA_DIR)
 	@echo ""
 	@echo "Step 3: Building new image..."
-	@docker build -t $(IMAGE_NAME):$(DOCKER_TAG) .
+	@docker build -f docker/Dockerfile -t $(IMAGE_NAME):$(DOCKER_TAG) .
 	@echo ""
 	@echo "Step 4: Starting new container..."
 	@docker run -d \

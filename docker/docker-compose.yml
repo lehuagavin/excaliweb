@@ -4,13 +4,13 @@ services:
   excaliweb:
     image: excaliweb:latest
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: excaliweb-app
     ports:
       - "5174:80"
     volumes:
-      - ./data:/app/data
+      - ../data:/app/data
     environment:
       - DATA_DIR=/app/data
       - DEFAULT_WORKSPACE=true

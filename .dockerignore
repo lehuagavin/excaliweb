@@ -20,14 +20,6 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Testing
-**/test-results
-**/playwright-report
-**/coverage
-**/.nyc_output
-tests
-test-drawings
-
 # IDE
 .vscode
 .idea
@@ -52,15 +44,17 @@ README*
 LICENSE
 specs
 
-# Docker
-Dockerfile*
-docker-compose*
+# Docker (avoid recursive COPY)
 .dockerignore
+
+# Data directory (mounted as volume, not baked into image)
+data
 
 # CI/CD
 .github
 .gitlab-ci.yml
 .travis.yml
+.claude
 
 # Misc
 .cache

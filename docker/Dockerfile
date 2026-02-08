@@ -57,10 +57,10 @@ COPY --from=client-builder /app/client/dist /usr/share/nginx/html
 # Copy nginx configuration
 RUN mkdir -p /etc/nginx/http.d && \
     rm -f /etc/nginx/http.d/default.conf
-COPY nginx.conf /etc/nginx/http.d/excaliweb.conf
+COPY docker/nginx.conf /etc/nginx/http.d/excaliweb.conf
 
 # Copy supervisor configuration
-COPY supervisord.conf /etc/supervisord.conf
+COPY docker/supervisord.conf /etc/supervisord.conf
 
 # Create log directory and data directory
 RUN mkdir -p /var/log /app/data
@@ -71,7 +71,7 @@ ENV PUID=1000
 ENV PGID=1000
 
 # Copy entrypoint script
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Declare volume (for documentation)

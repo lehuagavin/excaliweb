@@ -12,11 +12,9 @@
     "build:all": "npm run build:server && npm run build",
     "install:all": "cd client && npm install && cd ../server && npm install",
     "lint": "cd client && npm run lint",
-    "preview": "cd client && npm run preview",
-    "test": "playwright test"
+    "preview": "cd client && npm run preview"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.0",
     "@types/node": "^24.10.1"
   }
 }
